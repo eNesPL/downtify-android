@@ -29,6 +29,7 @@ class MainViewModel @Inject constructor(private val server: ServerRepository, se
     ViewModel() {
     private val loaded = MutableStateFlow(false)
     private val pendingPairing = MutableStateFlow<PairingPayload?>(null)
+    private val pendingSharedLink = MutableStateFlow<String?>(null)
 
     val settings: StateFlow<UserSettings?> = settings.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -56,6 +57,19 @@ class MainViewModel @Inject constructor(private val server: ServerRepository, se
 
     fun onPairingLink(uri: String) {
         PairingPayload.parse(uri)?.let { pendingPairing.value = it }
+    }
+
+    val sharedLink: StateFlow<String?> = pendingSharedLink.asStateFlow()
+
+    fun onSharedText(text: String?) {
+        val url = text?.let { Regex("https?://[^\\s]+").find(it)?.value }?.trimEnd('.', ',', ')')
+        if (url != null && com.henriquesebastiao.downtify.core.model.CatalogLinks.isLink(url)) {
+            pendingSharedLink.value = url
+        }
+    }
+
+    fun consumeSharedLink() {
+        pendingSharedLink.value = null
     }
 
     fun consumePairingRequest() {
