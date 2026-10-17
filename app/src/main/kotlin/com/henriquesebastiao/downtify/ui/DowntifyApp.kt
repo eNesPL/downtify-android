@@ -52,6 +52,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import com.henriquesebastiao.downtify.AppState
 import com.henriquesebastiao.downtify.MainViewModel
 import com.henriquesebastiao.downtify.R
@@ -108,6 +109,7 @@ import kotlin.coroutines.cancellation.CancellationException
 fun DowntifyApp(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     val appState by viewModel.appState.collectAsStateWithLifecycle()
     val pairingRequest by viewModel.pairingRequest.collectAsStateWithLifecycle()
+    val sharedLink by viewModel.sharedLink.collectAsStateWithLifecycle()
     Surface(modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         when (val state = appState) {
             AppState.Loading -> Unit
@@ -121,7 +123,7 @@ fun DowntifyApp(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                 // Opening a pairing link while paired does nothing: unpair in Settings first.
                 LaunchedEffect(pairingRequest) { if (pairingRequest != null) viewModel.consumePairingRequest() }
                 CompositionLocalProvider(LocalCoverUrls provides remember(state.baseUrl) { CoverUrls(state.baseUrl) }) {
-                    MainShell()
+                    MainShell(sharedLink, viewModel::consumeSharedLink)
                 }
             }
         }
@@ -129,8 +131,14 @@ fun DowntifyApp(viewModel: MainViewModel, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun MainShell() {
+private fun MainShell(sharedLink: String?, onSharedLinkHandled: () -> Unit) {
     val navController = rememberNavController()
+    LaunchedEffect(sharedLink) {
+        if (sharedLink != null) {
+            navController.navigate(SearchQueryRoute(sharedLink))
+            onSharedLinkHandled()
+        }
+    }
     val backStack by navController.currentBackStackEntryAsState()
     val destination = backStack?.destination
     val player: PlayerViewModel = hiltViewModel()
@@ -257,7 +265,10 @@ private fun AppNavHost(navController: NavHostController) {
             )
         }
         // The same screen with something typed in (a suggestion from Discover); its query is the route's argument.
-        composable<SearchQueryRoute> {
+        composable<SearchQueryRoute> { entry ->
+            val sharedQuery = entry.toRoute<SearchQueryRoute>().query
+            val searchViewModel: com.henriquesebastiao.downtify.feature.search.SearchViewModel = hiltViewModel()
+            LaunchedEffect(sharedQuery) { searchViewModel.onQueryChange(sharedQuery) }
             SearchRoute(
                 SearchNavigation(
                     onAlbum = toAlbum,
@@ -266,6 +277,7 @@ private fun AppNavHost(navController: NavHostController) {
                     onSimilar = { artist, title -> navController.navigate(SimilarRoute(artist, title)) },
                     onOpenLink = { navController.navigate(SearchQueryRoute(it)) },
                 ),
+                viewModel = searchViewModel,
             )
         }
         composable<SimilarRoute> {
