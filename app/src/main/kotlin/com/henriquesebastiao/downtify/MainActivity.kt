@@ -86,6 +86,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
+            val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+            viewModel.onSharedText(sharedText)
+            return
+        }
         val data = intent?.data ?: return
         if (intent.action == Intent.ACTION_VIEW && data.scheme == "downtify") viewModel.onPairingLink(data.toString())
     }
